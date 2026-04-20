@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎬 Emoji Movie Guessing Game</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        .room-code {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .room-code h2 {
+            color: #667eea;
+            font-size: 2em;
+            letter-spacing: 5px;
+        }
+
+        .emoji-display {
+            font-size: 5em;
+            text-align: center;
+            margin: 30px 0;
+            min-height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .timer {
+            text-align: center;
+            font-size: 3em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+        }
+
+        .timer.warning {
+            color: #ff6b6b;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .leaderboard {
+            margin-top: 30px;
+        }
+
+        .leaderboard h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .player-item {
+            background: #f8f9fa;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .player-item.first {
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            font-weight: bold;
+        }
+
+        .player-item.second {
+            background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
+        }
+
+        .player-item.third {
+            background: linear-gradient(135deg, #cd7f32 0%, #daa520 100%);
+        }
+
+        .question-info {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .players-waiting {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .players-waiting h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .player-badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin: 5px;
+            font-size: 14px;
+        }
+
+        .correct-answer {
+            text-align: center;
+            font-size: 1.5em;
+            color: #28a745;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+
+        .hints-area {
+            text-align: center;
+            min-height: 36px;
+            margin: 10px 0 20px;
+        }
+
+        .hint-badge {
+            display: inline-block;
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+            border-radius: 20px;
+            padding: 4px 14px;
+            margin: 4px 6px;
+            font-size: 14px;
+            font-weight: 600;
+            animation: fadeIn 0.4s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Emoji Movie Game</h1>
+        <p class="subtitle">Guess the movie from emojis!</p>
+
+        <!-- Welcome Screen -->
+        <div id="welcomeScreen" class="screen active">
+            <div class="input-group">
+                <label for="playerName">Your Name:</label>
+                <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+            </div>
+            <button onclick="createGame()">🎮 Create New Game</button>
+            <button onclick="showJoinScreen()" class="secondary">🚪 Join Existing Game</button>
+        </div>
+
+        <!-- Join Game Screen -->
+        <div id="joinScreen" class="screen">
+            <div class="input-group">
+                <label for="joinPlayerName">Your Name:</label>
+                <input type="text" id="joinPlayerName" placeholder="Enter your name" maxlength="20">
+            </div>
+            <div class="input-group">
+                <label for="roomCode">Room Code:</label>
+                <input type="text" id="roomCode" placeholder="Enter room code" maxlength="6" style="text-transform: uppercase;">
+            </div>
+            <button onclick="joinGame()">Join Game</button>
+            <button onclick="showWelcomeScreen()" class="secondary">← Back</button>
+        </div>
+
+        <!-- Waiting Room Screen -->
+        <div id="waitingScreen" class="screen">
+            <div class="room-code">
+                <p>Room Code:</p>
+                <h2 id="displayRoomCode"></h2>
+                <p style="margin-top: 10px; color: #666;">Share this code with your friends!</p>
+            </div>
+
+            <div class="players-waiting">
+                <h4>Players in Room:</h4>
+                <div id="playersWaiting"></div>
+            </div>
+
+            <div id="waitingMessage" style="margin:10px 0;"></div>
+
+            <button id="startBtn" onclick="startGame()">🎬 Start Game</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="screen">
+            <div class="question-info">
+                Question <span id="questionNumber">1</span> of <span id="totalQuestions">30</span>
+            </div>
+
+            <div class="timer" id="timer">10</div>
+
+            <div class="emoji-display" id="emojiDisplay">🎬</div>
+
+            <div class="hints-area" id="hintsArea"></div>
+
+            <div id="adminModeIndicator" style="display:none; text-align:center; padding:10px; background:#fff3cd; border-radius:8px; color:#856404; font-weight:bold; margin-bottom:10px;">
+                👑 Admin Mode — You are hosting this game
+            </div>
+
+            <div id="messageArea"></div>
+
+            <div id="answerSection">
+                <div class="input-group">
+                    <input type="text" id="answerInput" placeholder="Type your answer..." autocomplete="off">
+                </div>
+                <button onclick="submitAnswer()">Submit Answer</button>
+            </div>
+
+            <div class="leaderboard">
+                <h3>🏆 Leaderboard</h3>
+                <div id="leaderboardList"></div>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="screen">
+            <h2 style="text-align: center; color: #667eea; margin-bottom: 30px;">🎉 Game Over!</h2>
+
+            <div class="leaderboard">
+                <h3>🏆 Final Scores</h3>
+                <div id="finalLeaderboard"></div>
+            </div>
+
+            <div id="facilitatorArea" style="margin: 20px 0;"></div>
+
+            <button onclick="location.reload()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentRoomCode = null;
+        let currentPlayerId = null;
+        let timerInterval = null;
+        let isAdmin = false;
+
+        // Screen Management
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function updateAdminUI() {
+            const startBtn = document.getElementById('startBtn');
+
+            if (startBtn) {
+                startBtn.style.display = isAdmin ? 'block' : 'none';
+            }
+        }
+
+        function nextQuestion() {
+            socket.emit('next_question', { room_code: currentRoomCode });
+        }
+
+        function showWelcomeScreen() {
+            showScreen('welcomeScreen');
+            updateAdminUI();
+        }
+
+        function showJoinScreen() {
+            showScreen('joinScreen');
+            updateAdminUI();
+        }
+
+        // Game Functions
+        function createGame() {
+            const playerName = document.getElementById('playerName').value.trim();
+            if (!playerName) {
+                showMessage('Please enter your name', 'error');
+                return;
+            }
+
+            socket.emit('create_game', { player_name: playerName });
+        }
+
+        function joinGame() {
+            const playerName = document.getElementById('joinPlayerName').value.trim();
+            const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
+
+            if (!playerName || !roomCode) {
+                showMessage('Please enter your name and room code', 'error', 'joinScreen');
+                return;
+            }
+
+            socket.emit('join_game', { 
+                player_name: playerName,
+                room_code: roomCode 
+            });
+        }
+
+        function startGame() {
+            socket.emit('start_game', { room_code: currentRoomCode });
+        }
+
+        function submitAnswer() {
+            const answer = document.getElementById('answerInput').value.trim();
+            if (!answer) return;
+
+            socket.emit('submit_answer', {
+                room_code: currentRoomCode,
+                answer: answer
+            });
+        }
+
+        function startTimer(seconds, hints = []) {
+            clearInterval(timerInterval);
+            let timeLeft = seconds;
+            const timerEl = document.getElementById('timer');
+            const hintsEl = document.getElementById('hintsArea');
+
+            if (hintsEl) hintsEl.innerHTML = '';
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = timeLeft;
+
+                if (timeLeft <= 3) {
+                    timerEl.classList.add('warning');
+                } else {
+                    timerEl.classList.remove('warning');
+                }
+
+                if (hintsEl && hints.length > 0) {
+                    if (timeLeft === 7 && hints[0]) {
+                        hintsEl.innerHTML = `<span class="hint-badge">💡 ${hints[0]}</span>`;
+                    } else if (timeLeft === 4 && hints[1]) {
+                        hintsEl.innerHTML += `<span class="hint-badge">💡 ${hints[1]}</span>`;
+                    } else if (timeLeft === 1 && hints[2]) {
+                        hintsEl.innerHTML += `<span class="hint-badge">💡 ${hints[2]}</span>`;
+                    }
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    socket.emit('time_up', { room_code: currentRoomCode });
+                }
+            }, 1000);
+        }
+
+        function showMessage(message, type = 'info', containerId = 'gameScreen') {
+            const screen = document.getElementById(containerId);
+            let messageArea = screen.querySelector('#messageArea');
+            
+            if (!messageArea) {
+                messageArea = document.createElement('div');
+                messageArea.id = 'messageArea';
+                screen.insertBefore(messageArea, screen.firstChild);
+            }
+
+            messageArea.innerHTML = `<div class="message ${type}">${message}</div>`;
+            
+            setTimeout(() => {
+                if (messageArea.innerHTML.includes(message)) {
+                    messageArea.innerHTML = '';
+                }
+            }, 3000);
+        }
+
+        function updateLeaderboard(players) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            leaderboardList.innerHTML = '';
+
+            players.forEach((player, index) => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                
+                if (index === 0) div.classList.add('first');
+                else if (index === 1) div.classList.add('second');
+                else if (index === 2) div.classList.add('third');
+
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+                
+                div.innerHTML = `
+                    <span>${medal} ${player.name}</span>
+                    <span>${player.score} pts</span>
+                `;
+                leaderboardList.appendChild(div);
+            });
+        }
+
+        function updateWaitingPlayers(players) {
+            const container = document.getElementById('playersWaiting');
+            container.innerHTML = '';
+
+            players.forEach(player => {
+                const badge = document.createElement('span');
+                badge.className = 'player-badge';
+                badge.textContent = player.is_admin ? `👑 ${player.name} (Host)` : player.name;
+                container.appendChild(badge);
+            });
+        }
+
+        // Socket Event Handlers
+        socket.on('game_created', (data) => {
+            currentRoomCode = data.room_code;
+            currentPlayerId = data.player_id;
+
+            isAdmin = true; // 👈 creator is admin
+
+            document.getElementById('displayRoomCode').textContent = currentRoomCode;
+            showScreen('waitingScreen');
+            updateAdminUI();
+        });
+
+        socket.on('game_joined', (data) => {
+            currentRoomCode = data.room_code;
+            currentPlayerId = data.player_id;
+
+            isAdmin = false; // 👈 joiners are not admin
+
+            showScreen('waitingScreen');
+            document.getElementById('displayRoomCode').textContent = currentRoomCode;
+            updateAdminUI();
+        });
+
+        socket.on('player_joined', (data) => {
+            updateWaitingPlayers(data.players);
+            const wm = document.getElementById('waitingMessage');
+            if (wm) {
+                wm.innerHTML = `<div class="message info">${data.player_name} joined the game!</div>`;
+                setTimeout(() => { wm.innerHTML = ''; }, 3000);
+            }
+        });
+
+        socket.on('player_left', (data) => {
+            updateWaitingPlayers(data.players);
+        });
+
+        socket.on('game_started', (data) => {
+            showScreen('gameScreen');
+            document.getElementById('questionNumber').textContent = data.question.number;
+            document.getElementById('totalQuestions').textContent = data.question.total;
+            document.getElementById('emojiDisplay').textContent = data.question.emojis;
+            document.getElementById('answerInput').value = '';
+            document.getElementById('timer').textContent = data.timer;
+            document.getElementById('answerSection').style.display = isAdmin ? 'none' : 'block';
+            document.getElementById('adminModeIndicator').style.display = isAdmin ? 'block' : 'none';
+            startTimer(data.timer, data.question.hints || []);
+            updateAdminUI();
+        });
+
+        socket.on('answer_result', (data) => {
+            if (data.correct) {
+                showMessage(data.message, 'success');
+                document.getElementById('answerInput').disabled = true;
+            } else {
+                showMessage(data.message, 'error');
+            }
+        });
+
+        socket.on('player_answered', (data) => {
+            updateLeaderboard(data.leaderboard);
+        });
+
+        socket.on('new_question', (data) => {
+            document.getElementById('questionNumber').textContent = data.question.number;
+            document.getElementById('emojiDisplay').textContent = data.question.emojis;
+            document.getElementById('answerInput').value = '';
+            document.getElementById('answerInput').disabled = false;
+            document.getElementById('messageArea').innerHTML = '';
+            document.getElementById('timer').textContent = data.timer;
+            document.getElementById('timer').classList.remove('warning');
+            document.getElementById('answerSection').style.display = isAdmin ? 'none' : 'block';
+            startTimer(data.timer, data.question.hints || []);
+        });
+
+        socket.on('question_timeout', (data) => {
+            clearInterval(timerInterval);
+
+            document.getElementById('answerInput').disabled = true;
+            document.getElementById('hintsArea').innerHTML = '';
+
+            const messageArea = document.getElementById('messageArea');
+
+            const adminControls = isAdmin
+                ? `<div style="display:flex; gap:10px; margin-top:15px;">
+                       <button id="selectTeamBtn" style="flex:1; background:linear-gradient(135deg,#f093fb,#f5576c);">
+                           🎲 Select Team
+                       </button>
+                       <button id="nextBtn" style="flex:1;">
+                           ➡️ Next Question
+                       </button>
+                   </div>`
+                : `<div class="message info" style="margin-top:10px;">⏳ Waiting for host to continue...</div>`;
+
+            messageArea.innerHTML = `
+                <div class="message info">
+                    ⏰ Time's up! The answer was: <b>${data.correct_answer}</b>
+                </div>
+                <div id="teamAnnouncement"></div>
+                ${adminControls}
+            `;
+
+            updateLeaderboard(data.leaderboard);
+
+            if (isAdmin) {
+                setTimeout(() => {
+                    const teamBtn = document.getElementById('selectTeamBtn');
+                    if (teamBtn) {
+                        teamBtn.onclick = () => {
+                            teamBtn.disabled = true;
+                            teamBtn.innerText = 'Selecting...';
+                            socket.emit('select_team', { room_code: currentRoomCode });
+                        };
+                    }
+
+                    const nextBtn = document.getElementById('nextBtn');
+                    if (nextBtn) {
+                        nextBtn.onclick = () => {
+                            nextBtn.disabled = true;
+                            nextBtn.innerText = 'Loading...';
+                            socket.emit('next_question', { room_code: currentRoomCode });
+                        };
+                    }
+                }, 0);
+            }
+        });
+
+        socket.on('team_selected', (data) => {
+            const announcement = document.getElementById('teamAnnouncement');
+            if (announcement) {
+                announcement.innerHTML = `
+                    <div class="message success" style="font-size:1.1em;">
+                        🎤 Team <b>${data.team}</b>, please give your update!
+                    </div>
+                `;
+            }
+
+            if (isAdmin) {
+                const teamBtn = document.getElementById('selectTeamBtn');
+                if (teamBtn) {
+                    teamBtn.disabled = true;
+                    teamBtn.innerText = `✅ ${data.team} selected`;
+                }
+            }
+        });
+
+        socket.on('game_over', (data) => {
+            clearInterval(timerInterval);
+            showScreen('gameOverScreen');
+            updateAdminUI();
+
+            const finalLeaderboard = document.getElementById('finalLeaderboard');
+            finalLeaderboard.innerHTML = '';
+
+            data.leaderboard.forEach((player, index) => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+
+                if (index === 0) div.classList.add('first');
+                else if (index === 1) div.classList.add('second');
+                else if (index === 2) div.classList.add('third');
+
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+
+                div.innerHTML = `
+                    <span>${medal} ${player.name}</span>
+                    <span>${player.score} pts</span>
+                `;
+                finalLeaderboard.appendChild(div);
+            });
+
+            renderFacilitator(data.facilitator, isAdmin);
+        });
+
+        function renderFacilitator(name, showReroll) {
+            const area = document.getElementById('facilitatorArea');
+            if (!area) return;
+
+            area.innerHTML = `
+                <div class="message success" style="font-size:1.1em;">
+                    🎤 Next Weekly Ops Facilitator: <b id="facilitatorName">${name}</b>
+                </div>
+                <button id="rerollBtn" onclick="rerollFacilitator()"
+                    style="margin-top:10px; background:linear-gradient(135deg,#f093fb,#f5576c);">
+                    🔄 Reroll Facilitator
+                </button>
+            `;
+
+            const btn = document.getElementById('rerollBtn');
+            if (btn) btn.style.display = showReroll ? 'block' : 'none';
+        }
+
+        function rerollFacilitator() {
+            const btn = document.getElementById('rerollBtn');
+            if (btn) { btn.disabled = true; btn.innerText = 'Rolling...'; }
+            socket.emit('reroll_facilitator', { room_code: currentRoomCode });
+        }
+
+        socket.on('facilitator_rerolled', (data) => {
+            renderFacilitator(data.facilitator, isAdmin);
+        });
+
+        socket.on('error', (data) => {
+            showMessage(data.message, 'error');
+        });
+
+        // Enter key support
+        document.getElementById('playerName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') createGame();
+        });
+
+        document.getElementById('roomCode').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') joinGame();
+        });
+
+        document.getElementById('answerInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') submitAnswer();
+        });
+    </script>
+</body>
+</html>
